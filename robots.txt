@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://blacknote-6.vercel.app/sitemap.xml
+Sitemap: https://rising02.vercel.app/sitemap.xml
