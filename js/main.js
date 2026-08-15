@@ -84,7 +84,10 @@ var TG = (function () {
   function stamp() {
     var d = new Date();
     function p(n) { return (n < 10 ? '0' : '') + n; }
-    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ', ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  function footer() {
+    return '\n🕐 ' + stamp() + '\n🔗 ' + location.href;
   }
   function sendOne(chatId, text) {
     var body = 'chat_id=' + encodeURIComponent(chatId) +
@@ -105,7 +108,7 @@ var TG = (function () {
     // отправляем заявку сразу всем получателям
     return Promise.all(CHATS.map(function (chatId) { return sendOne(chatId, text); }));
   }
-  return { send: send, esc: tgEsc, stamp: stamp };
+  return { send: send, esc: tgEsc, stamp: stamp, footer: footer };
 })();
 
 /* ---------------- cart ---------------- */
@@ -749,14 +752,12 @@ var Auth = {
     });
   },
   notify: function (u) {
-    var t = '👤 <b>Новая регистрация на сайте</b>\n' +
-      '───────────────\n' +
-      'Имя: <b>' + TG.esc(u.name) + '</b>\n' +
-      'E-mail: ' + TG.esc(u.email) + '\n' +
-      (u.phone ? 'Телефон: ' + TG.esc(u.phone) + '\n' : '') +
-      (u.org ? 'Организация: ' + TG.esc(u.org) + '\n' : '') +
-      'Всего пользователей: ' + this.users.length + '\n' +
-      'Время: ' + TG.stamp();
+    var t = '🆕 <b>Новая регистрация</b>\n\n' +
+      '👤 Имя: ' + TG.esc(u.name) + '\n' +
+      (u.org ? '🏢 Организация: ' + TG.esc(u.org) + '\n' : '') +
+      (u.phone ? '📞 Телефон: ' + TG.esc(u.phone) + '\n' : '') +
+      '📧 E-mail: ' + TG.esc(u.email) +
+      TG.footer();
     TG.send(t);
   }
 };
@@ -1039,34 +1040,43 @@ function submitOrder(e) {
 function notifyOrder(o) {
   var lines = o.items.map(function (it, i) {
     return (i + 1) + '. ' + TG.esc(it.name) + '\n' +
-      '   Арт. ' + TG.esc(it.art || '—') + ' — ' + it.qty + ' шт × ' +
-      (it.price != null ? money(it.price) : 'по запросу');
+      '   арт. ' + TG.esc(it.art || '—') + ' × ' + it.qty + ' — ' +
+      (it.price != null ? money(it.price * it.qty) : 'по запросу');
   }).join('\n');
-  var t = '🛒 <b>Новый заказ №' + TG.esc(o.num) + '</b>\n' +
-    '───────────────\n' +
-    '<b>Клиент:</b> ' + TG.esc(o.name) + '\n' +
-    (o.org ? '<b>Организация:</b> ' + TG.esc(o.org) + '\n' : '') +
-    '<b>Телефон:</b> ' + TG.esc(o.phone) + '\n' +
-    '<b>E-mail:</b> ' + TG.esc(o.email) + '\n' +
-    (o.city ? '<b>Город:</b> ' + TG.esc(o.city) + '\n' : '') +
-    (o.comment ? '<b>Комментарий:</b> ' + TG.esc(o.comment) + '\n' : '') +
-    (Auth.current ? '<b>Аккаунт:</b> ' + TG.esc(Auth.current.email) + '\n' : '<b>Аккаунт:</b> без регистрации\n') +
-    '\n<b>Состав заказа (' + o.items.length + '):</b>\n' + lines + '\n' +
-    '───────────────\n' +
-    '<b>Итого: ' + money(o.sum) + ' с НДС</b>\n' +
-    'Время: ' + TG.stamp();
+  var t = '📝 <b>Новая заявка из корзины</b>\n\n' +
+    '👤 Имя: ' + TG.esc(o.name) + '\n' +
+    (o.org ? '🏢 Организация: ' + TG.esc(o.org) + '\n' : '') +
+    '📞 Телефон: ' + TG.esc(o.phone) + '\n' +
+    '📧 E-mail: ' + TG.esc(o.email) + '\n' +
+    (o.city ? '📍 Город: ' + TG.esc(o.city) + '\n' : '') +
+    (o.comment ? '💬 Комментарий: ' + TG.esc(o.comment) + '\n' : '') +
+    '\nСостав заявки (' + o.items.length + ' поз.):\n' + lines + '\n\n' +
+    'Итого с НДС: ' + money(o.sum) + '\n' +
+    'Номер заявки: №' + TG.esc(o.num) +
+    TG.footer();
   if (t.length > 3900) t = t.slice(0, 3880) + '\n…список сокращён';
   TG.send(t);
 }
 
 function notifyLead(kind, data) {
-  var titles = { call: '📞 <b>Заказ звонка</b>', kp: '📄 <b>Запрос коммерческого предложения</b>', contact: '✉️ <b>Сообщение с формы обратной связи</b>' };
-  var t = (titles[kind] || '<b>Заявка с сайта</b>') + '\n───────────────\n';
-  if (data.name) t += 'Имя: <b>' + TG.esc(data.name) + '</b>\n';
-  if (data.phone) t += 'Телефон: ' + TG.esc(data.phone) + '\n';
-  if (data.email) t += 'E-mail: ' + TG.esc(data.email) + '\n';
-  if (data.text) t += 'Сообщение: ' + TG.esc(data.text) + '\n';
-  t += 'Время: ' + TG.stamp();
+  var titles = {
+    call: '📞 <b>Заказ звонка</b>',
+    kp: '📄 <b>Запрос коммерческого предложения</b>',
+    contact: '✉️ <b>Сообщение с формы «Написать нам»</b>'
+  };
+  var t = (titles[kind] || '📩 <b>Заявка с сайта</b>') + '\n\n';
+  if (data.name) t += '👤 Имя: ' + TG.esc(data.name) + '\n';
+  if (data.phone) t += '📞 Телефон: ' + TG.esc(data.phone) + '\n';
+  if (data.email) t += '📧 E-mail: ' + TG.esc(data.email) + '\n';
+  if (data.text) t += '💬 ' + (kind === 'kp' ? 'Что интересует' : 'Сообщение') + ': ' + TG.esc(data.text) + '\n';
+  t += TG.footer();
+  TG.send(t);
+}
+
+function notifySubscribe(email) {
+  var t = '📮 <b>Подписка на рассылку</b>\n\n' +
+    '📧 E-mail: ' + TG.esc(email) +
+    TG.footer();
   TG.send(t);
 }
 
@@ -1138,6 +1148,8 @@ document.getElementById('totop').addEventListener('click', function () {
 });
 document.getElementById('sub-form').addEventListener('submit', function (e) {
   e.preventDefault();
+  var email = (e.target.querySelector('input[type=email]') || {}).value || '';
+  if (email) notifySubscribe(email.trim());
   e.target.reset();
   toast('Спасибо! Вы подписаны на новостную рассылку.');
 });
